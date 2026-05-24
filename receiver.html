@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signature Receiver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000000;
+    }
+
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/p5.min.js"></script>
+  <script>
+    // ============================================================
+    // Signature Receiver — WebSocket p5.js renderer for TouchDesigner
+    // ============================================================
+
+    // Auto-detect WebSocket protocol and host dynamically to support both local LAN IPs and ngrok / domain tunneling out of the box!
+    let wsUrl;
+    if (window.location.protocol === "file:") {
+      wsUrl = "ws://192.168.18.6:9980/receiver";
+    } else {
+      const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+      wsUrl = `${wsProtocol}${window.location.host}/receiver`;
+    }
+    let ws = null;
+    let connected = false;
+
+    // Stroke data
+    let strokes = [];        // Array of completed stroke arrays
+    let currentStroke = null; // Currently active stroke being drawn
+    let signerName = "";      // Current signer display name
+    let guestList = [];       // Loaded guest list for name verification
+
+    // Comprehensive fallback guest list (includes both server defaults and custom guests)
+    const defaultGuests = [
+      "andy arvianto",
+      "rini widiastuti",
+      "irzan noor rizki",
+      "robby rafid",
+      "eri sulistyo sutikno",
+      "dewi kurnia salwa",
+      "saptiadi nugroho",
+      "rachmat hutama",
+      "a.a.a.indira pratyaksa",
+      "mutiara anggita rahardja",
+      "veronika r. setyowati",
+      "fitri azwar",
+      "febri rusnal",
+      "kurnia pinayungan",
+      "widhi setyo darwanto",
+      "alvin christian",
+      "rahmi amini",
+      "eldhini vionna",
+      "tito rahman hidayatullah",
+      "rudi hermawan",
+      "siti aminah",
+      "bambang utomo",
+      "dewi lestari",
+      "hendra wijaya",
+      "guest access"
+    ];
+
+    // If ?name=John%20Doe is in the URL, only process strokes from that name
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetNameQuery = urlParams.get('name') ? urlParams.get('name').trim().toLowerCase() : null;
+
+    const normalizeName = (name) => (name && typeof name === 'string') ? name.trim().toLowerCase() : "";
+
+    // Verify if name is authorized (present in the active or fallback guest list)
+    function isNameCorrect(name) {
+      const normalized = normalizeName(name);
+      if (!normalized) return false;
+      if (guestList && guestList.length > 0) {
+        return guestList.some(guest => {
+          if (typeof guest === 'string') {
+            return guest === normalized;
+          } else if (guest && typeof guest === 'object') {
+            return normalizeName(guest.name) === normalized;
+          }
+          return false;
+        });
+      }
+      return defaultGuests.includes(normalized);
+    }
+
+    // Load guest list from local server files
+    async function loadGuestList() {
+      try {
+        const response = await fetch('guestlist.txt');
+        if (response.ok) {
+          const text = await response.text();
+          guestList = text.split('\n')
+            .map(name => name.trim().toLowerCase())
+            .filter(name => name.length > 0);
+          console.log("[Receiver] Loaded guest list via fetch:", guestList);
+        }
+      } catch (e) {
+        console.log("[Receiver] Local fetch for guestlist.txt failed (expected if loaded as file://), relying on WS/fallback.");
+      }
+    }
+
+    // Offscreen buffer for incremental stroke rendering
+    let strokesG = null;
+
+    function setup() {
+      const canvas = createCanvas(windowWidth, windowHeight);
+      canvas.position(0, 0);
+      canvas.style('display', 'block');
+      pixelDensity(1);
+
+      strokesG = createGraphics(windowWidth, windowHeight);
+      strokesG.pixelDensity(1);
+      strokesG.clear();
+
+      connectWS();
+      loadGuestList();
+    }
+
+    function draw() {
+      background(0);
+
+      // Draw accumulated strokes
+      if (strokesG) image(strokesG, 0, 0);
+
+      // Draw active stroke tip glow
+      if (currentStroke && currentStroke.length > 0) {
+        let tip = currentStroke[currentStroke.length - 1];
+        drawTipGlow(tip.x, tip.y);
+      }
+
+      // Draw signer name
+      drawSignerName();
+
+      // Draw connection status indicator
+      drawConnectionStatus();
+    }
+
+    // ==========================
+    // WebSocket
+    // ==========================
+
+    function connectWS() {
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        connected = true;
+        console.log("[Receiver] Connected to WS server");
+      };
+
+      ws.onmessage = (event) => {
+        console.log(event.data);
+        try {
+          const data = JSON.parse(event.data);
+
+          // If it is a guest list message (array), store it for verification
+          if (Array.isArray(data)) {
+            guestList = data.map(item => {
+              if (typeof item === 'string') {
+                return item.trim().toLowerCase();
+              } else if (item && typeof item === 'object') {
+                return (item.name || '').trim().toLowerCase();
+              }
+              return '';
+            }).filter(Boolean);
+            console.log("[Receiver] Received guest list from WebSocket:", guestList);
+            return;
+          }
+
+          handleStrokeData(data);
+        } catch (e) {
+          // ignore non-JSON
+        }
+      };
+
+      ws.onclose = () => {
+        connected = false;
+        console.log("[Receiver] Disconnected, retrying in 2s...");
+        setTimeout(connectWS, 2000);
+      };
+
+      ws.onerror = () => {
+        connected = false;
+      };
+    }
+
+    function handleStrokeData(data) {
+      // Denormalize coordinates back to canvas pixels
+      const px = data.x !== undefined ? data.x * width : 0;
+      const py = data.y !== undefined ? data.y * height : 0;
+      const dataName = normalizeName(data.name);
+
+      // Filter by target name if provided in query string; otherwise verify name in guest list
+      if (targetNameQuery) {
+        if (dataName !== targetNameQuery) {
+          return;
+        }
+      } else {
+        if (!isNameCorrect(dataName)) {
+          console.warn("[Receiver] Ignored stroke data: name is incorrect/not authorized:", data.name);
+          return;
+        }
+      }
+
+      if (data.name && data.name.length > 0) {
+        // If the signer changed, clear everything for the new person
+        if (normalizeName(signerName) !== dataName) {
+          clearAll();
+          signerName = data.name;
+        }
+      }
+
+      switch (data.type) {
+        case 'load_signature':
+          console.log('[Receiver] Loading and reconstructing signature for:', data.name);
+          clearAll();
+          signerName = data.name;
+          
+          if (data.strokes && data.strokes.length > 0) {
+            // Reconstruct absolute pixel stroke points from normalized floats
+            strokes = data.strokes.map(stroke => 
+              stroke.map(pt => ({
+                x: pt.x * width,
+                y: pt.y * height
+              }))
+            );
+            
+            // Draw all strokes on the strokesG graphics layer
+            strokesG.clear();
+            for (let s of strokes) {
+              if (s.length < 3) {
+                drawSmoothSegment(strokesG, s);
+              } else {
+                for (let i = 0; i <= s.length - 3; i++) {
+                  drawSmoothSegment(strokesG, s.slice(i, i + 3));
+                }
+              }
+            }
+          }
+          break;
+
+        case 'start':
+          currentStroke = [{ x: px, y: py }];
+          strokes.push(currentStroke);
+
+          // Draw initial dot
+          // strokesG.stroke(0, 243, 255, 220);
+          strokesG.stroke(0, 0, 0, 255);
+          strokesG.strokeWeight(4);
+          strokesG.strokeJoin(ROUND);
+          strokesG.strokeCap(ROUND);
+          strokesG.point(px, py);
+          break;
+
+        case 'drag':
+          if (currentStroke) {
+            currentStroke.push({ x: px, y: py });
+
+            if (currentStroke.length < 3) {
+              drawSmoothSegment(strokesG, currentStroke);
+            } else {
+              const recent = currentStroke.slice(-3);
+              drawSmoothSegment(strokesG, recent);
+            }
+          }
+          break;
+
+        case 'end':
+          currentStroke = null;
+          break;
+
+        case 'clear':
+          console.log('Received clear command');
+          clearAll();
+          // Reset any state flags that might prevent further drawing
+          if (typeof finished !== 'undefined') finished = false;
+          break;
+      }
+    }
+
+    function clearAll() {
+      // Reset stroke data
+      strokes = [];
+      currentStroke = null;
+      signerName = "";
+
+      // Reset finished flag if it exists
+      if (typeof finished !== 'undefined') finished = false;
+
+      // Clear drawing buffer
+      if (typeof strokesG !== 'undefined' && strokesG) strokesG.clear();
+
+      // Clear optional grid if defined
+      if (typeof gridG !== 'undefined' && gridG) {
+        gridG.clear();
+        if (typeof renderGrid === 'function') renderGrid();
+      }
+    }
+
+    // ==========================
+    // Stroke Rendering (matching original neon style)
+    // ==========================
+
+    function drawSmoothSegment(g, points) {
+      const len = points.length;
+      if (len === 1) {
+        // g.stroke(0, 243, 255, 220);
+        g.stroke(255, 255, 255, 255);
+        g.strokeWeight(8);
+        g.strokeJoin(ROUND);
+        g.strokeCap(ROUND);
+        g.point(points[0].x, points[0].y);
+        return;
+      }
+      if (len === 2) {
+        // Glow layers
+        // g.stroke(0, 243, 255, 35);
+        g.stroke(255, 255, 255, 255);
+        g.strokeWeight(16);
+        g.line(points[0].x, points[0].y, points[1].x, points[1].y);
+
+        // g.stroke(0, 255, 200, 80);
+        g.stroke(255, 255, 255, 255);
+        g.strokeWeight(10);
+        g.line(points[0].x, points[0].y, points[1].x, points[1].y);
+
+        // g.stroke(225, 255, 255, 240);
+        g.stroke(255, 255, 255, 255);
+        g.strokeWeight(5.0);
+        g.line(points[0].x, points[0].y, points[1].x, points[1].y);
+        return;
+      }
+
+      const p0 = points[len - 3];
+      const p1 = points[len - 2];
+      const p2 = points[len - 1];
+      const startX = (p0.x + p1.x) / 2;
+      const startY = (p0.y + p1.y) / 2;
+      const endX = (p1.x + p2.x) / 2;
+      const endY = (p1.y + p2.y) / 2;
+      const steps = 12;
+
+      // Multi-layer glow curves
+      drawCurveLayer(g, startX, startY, endX, endY, p1, steps, 255, 255, 255, 35, 16.0);
+      drawCurveLayer(g, startX, startY, endX, endY, p1, steps, 255, 255, 255, 80, 10.0);
+      drawCurveLayer(g, startX, startY, endX, endY, p1, steps, 255, 255, 255, 240, 5.0);
+    }
+
+    function drawCurveLayer(g, startX, startY, endX, endY, cp, steps, r, gr, b, a, wt) {
+      g.stroke(r, gr, b, a);
+      g.strokeWeight(wt);
+      g.strokeJoin(ROUND);
+      g.strokeCap(ROUND);
+
+      let prevX = startX;
+      let prevY = startY;
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = (1 - t) * (1 - t) * startX + 2 * (1 - t) * t * cp.x + t * t * endX;
+        const y = (1 - t) * (1 - t) * startY + 2 * (1 - t) * t * cp.y + t * t * endY;
+        g.line(prevX, prevY, x, y);
+        prevX = x;
+        prevY = y;
+      }
+    }
+
+    // ==========================
+    // Visual Overlays
+    // ==========================
+
+    function drawTipGlow(px, py) {
+      push();
+      // Radial halo
+      noStroke();
+      fill(0, 255, 200, 20);
+      ellipse(px, py, 60);
+      fill(0, 255, 200, 40);
+      ellipse(px, py, 30);
+
+      // Crosshair
+      stroke(0, 255, 255, 180);
+      strokeWeight(1);
+      noFill();
+      ellipse(px, py, 12);
+      line(px - 10, py, px + 10, py);
+      line(px, py - 10, px, py + 10);
+      pop();
+    }
+
+    function drawSignerName() {
+      if (!signerName || signerName.length === 0) return;
+
+      push();
+      textFont('Space Mono', 'monospace');
+      textAlign(CENTER, CENTER);
+      textSize(18);
+      textStyle(BOLD);
+
+      let cx = width / 2;
+      let cy = 36;
+
+      let displayName = signerName.toUpperCase();
+      let tw = textWidth(displayName) + 50;
+      let th = 38;
+
+      // Glass backdrop
+      fill(0, 0, 0, 180);
+      stroke(0, 255, 200, 50);
+      strokeWeight(1);
+      // rect(cx - tw / 2, cy - th / 2, tw, th, 4);
+
+      // Corner brackets
+      stroke(0, 255, 200, 140);
+      strokeWeight(1.5);
+      let bl = 6;
+      // line(cx - tw / 2, cy - th / 2, cx - tw / 2 + bl, cy - th / 2);
+      // line(cx - tw / 2, cy - th / 2, cx - tw / 2, cy - th / 2 + bl);
+      // line(cx + tw / 2, cy - th / 2, cx + tw / 2 - bl, cy - th / 2);
+      // line(cx + tw / 2, cy - th / 2, cx + tw / 2, cy - th / 2 + bl);
+      // line(cx - tw / 2, cy + th / 2, cx - tw / 2 + bl, cy + th / 2);
+      // line(cx - tw / 2, cy + th / 2, cx - tw / 2, cy + th / 2 - bl);
+      // line(cx + tw / 2, cy + th / 2, cx + tw / 2 - bl, cy + th / 2);
+      // line(cx + tw / 2, cy + th / 2, cx + tw / 2, cy + th / 2 - bl);
+
+      // Name text
+      noStroke();
+      // fill(0, 255, 200, 220);
+      // text(displayName, cx, cy);
+      pop();
+    }
+
+    function drawConnectionStatus() {
+      push();
+      textFont('Space Mono', 'monospace');
+      textSize(10);
+      textAlign(LEFT, CENTER);
+
+      let statusX = 14;
+      let statusY = height - 16;
+
+      // Pulsing dot
+      let pulse = 0.5 + 0.5 * sin(millis() * 0.006);
+      noStroke();
+      if (connected) {
+        // fill(0, 255, 200, 150 + 105 * pulse);
+        // ellipse(statusX, statusY, 6);
+        // fill(0, 255, 200, 180);
+        // text("RECEIVER ONLINE", statusX + 10, statusY);
+      } else {
+        // fill(255, 80, 80, 150 + 105 * pulse);
+        // ellipse(statusX, statusY, 6);
+        // fill(255, 80, 80, 180);
+        // text("DISCONNECTED — RETRYING...", statusX + 10, statusY);
+      }
+
+      // Stroke count
+      let totalPts = strokes.reduce((a, s) => a + s.length, 0);
+      // fill(0, 180, 255, 140);
+      // text(`STROKES: ${strokes.length} | NODES: ${totalPts}`, statusX, statusY - 14);
+      pop();
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      // Recreate buffer and redraw all strokes
+      strokesG = createGraphics(windowWidth, windowHeight);
+      strokesG.pixelDensity(1);
+      strokesG.clear();
+
+      for (let s of strokes) {
+        if (s.length < 3) {
+          drawSmoothSegment(strokesG, s);
+        } else {
+          for (let i = 0; i <= s.length - 3; i++) {
+            drawSmoothSegment(strokesG, s.slice(i, i + 3));
+          }
+        }
+      }
+    }
+  </script>
+</body>
+
+</html>

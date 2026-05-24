@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Biometric Signature Admin Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #080c10;
+      --panel-bg: rgba(13, 20, 28, 0.75);
+      --border-color: rgba(0, 180, 255, 0.25);
+      --glow-blue: #00b4ff;
+      --glow-green: #00ffc8;
+      --glow-red: #ff5050;
+      --text-main: #e1e7ee;
+      --text-dim: #8ba2b5;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100vh;
+      background: var(--bg-color);
+      font-family: 'Space Mono', monospace;
+      color: var(--text-main);
+      overflow-x: hidden;
+    }
+
+    /* Premium Futuristic Background Tiling */
+    body {
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 180, 255, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(0, 255, 200, 0.05) 0%, transparent 40%),
+        linear-gradient(rgba(0, 180, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 180, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+      padding: 40px 20px;
+    }
+
+    /* Core Page Layout */
+    .admin-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+
+    /* Glowing Glassmorphic Panel Base */
+    .glass-panel {
+      background: var(--panel-bg);
+      border: 1.5px solid var(--border-color);
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .glass-panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--glow-blue), var(--glow-green));
+      opacity: 0.8;
+    }
+
+    /* Console Header Styling */
+    .header-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .title-area h1 {
+      font-size: clamp(20px, 3vw, 32px);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      background: linear-gradient(90deg, #fff, var(--text-dim));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+    }
+
+    .title-area p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Live Sync Status Display */
+    .network-badge {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(8, 14, 21, 0.8);
+      border: 1px solid var(--border-color);
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--glow-red);
+      box-shadow: 0 0 10px var(--glow-red);
+    }
+
+    .pulse-dot.online {
+      background: var(--glow-green);
+      box-shadow: 0 0 12px var(--glow-green);
+      animation: heartbeat 2s infinite ease-in-out;
+    }
+
+    .pulse-dot.connecting {
+      background: #ffb400;
+      box-shadow: 0 0 12px #ffb400;
+      animation: flash 1s infinite alternate;
+    }
+
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.2); opacity: 1; }
+    }
+
+    @keyframes flash {
+      from { opacity: 0.3; }
+      to { opacity: 1; }
+    }
+
+    /* Stats Grid Dashboard */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-card {
+      background: rgba(8, 12, 18, 0.9);
+      border: 1px dashed rgba(0, 180, 255, 0.15);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--border-color);
+      background: rgba(13, 20, 28, 0.95);
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: bold;
+      color: var(--glow-blue);
+      text-shadow: 0 0 15px rgba(0, 180, 255, 0.3);
+    }
+
+    .stat-card:nth-child(2) .stat-value {
+      color: var(--glow-green);
+      text-shadow: 0 0 15px rgba(0, 255, 200, 0.3);
+    }
+
+    .stat-card:nth-child(3) .stat-value {
+      color: #ffaa00;
+      text-shadow: 0 0 15px rgba(255, 170, 0, 0.3);
+    }
+
+    /* Search & Control Deck */
+    .controls-deck {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .search-wrapper {
+      flex-grow: 1;
+      max-width: 500px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(5, 7, 10, 0.85);
+      border: 1.5px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px 18px;
+      font-family: inherit;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s ease;
+      letter-spacing: 1px;
+    }
+
+    .search-input:focus {
+      border-color: var(--glow-blue);
+      box-shadow: 0 0 15px rgba(0, 180, 255, 0.15);
+    }
+
+    /* Filter pills */
+    .filters-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .filter-btn {
+      background: rgba(8, 14, 21, 0.9);
+      border: 1px solid rgba(0, 180, 255, 0.25);
+      color: var(--text-dim);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-weight: bold;
+      font-size: 11px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--glow-blue);
+      color: var(--glow-blue);
+    }
+
+    .filter-btn.active {
+      background: rgba(0, 180, 255, 0.15);
+      border-color: var(--glow-blue);
+      color: var(--glow-blue);
+      text-shadow: 0 0 8px rgba(0, 180, 255, 0.5);
+    }
+
+    /* Tech Buttons */
+    .btn {
+      font-family: inherit;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border: 1.5px solid transparent;
+      padding: 12px 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      outline: none;
+    }
+
+    .btn-glow-red {
+      background: rgba(255, 80, 80, 0.08);
+      border-color: var(--glow-red);
+      color: var(--glow-red);
+    }
+
+    .btn-glow-red:hover {
+      background: rgba(255, 80, 80, 0.2);
+      box-shadow: 0 0 20px rgba(255, 80, 80, 0.3);
+      text-shadow: 0 0 8px rgba(255, 80, 80, 0.5);
+    }
+
+    .btn-glow-blue {
+      background: rgba(0, 180, 255, 0.08);
+      border-color: var(--glow-blue);
+      color: var(--glow-blue);
+    }
+
+    .btn-glow-blue:hover {
+      background: rgba(0, 180, 255, 0.2);
+      box-shadow: 0 0 20px rgba(0, 180, 255, 0.3);
+      text-shadow: 0 0 8px rgba(0, 180, 255, 0.5);
+    }
+
+    /* Core Data Table */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 15px;
+      border: 1px solid rgba(0, 180, 255, 0.15);
+      border-radius: 8px;
+      background: rgba(5, 8, 12, 0.6);
+    }
+
+    .tech-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    .tech-table th {
+      background: rgba(8, 14, 21, 0.95);
+      border-bottom: 2px solid var(--border-color);
+      padding: 16px 20px;
+      font-weight: bold;
+      color: var(--text-dim);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .tech-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(0, 180, 255, 0.1);
+      vertical-align: middle;
+      transition: background 0.2s ease;
+    }
+
+    .tech-table tbody tr:hover td {
+      background: rgba(0, 180, 255, 0.04);
+    }
+
+    /* Tech Status Badges */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 6px 14px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .status-badge.unlocked {
+      background: rgba(0, 255, 200, 0.06);
+      border-color: rgba(0, 255, 200, 0.25);
+      color: var(--glow-green);
+      text-shadow: 0 0 8px rgba(0, 255, 200, 0.3);
+    }
+
+    .status-badge.locked {
+      background: rgba(255, 80, 80, 0.06);
+      border-color: rgba(255, 80, 80, 0.25);
+      color: var(--glow-red);
+      text-shadow: 0 0 8px rgba(255, 80, 80, 0.3);
+    }
+
+    /* Actions Column Group */
+    .actions-cell {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .action-btn {
+      font-family: inherit;
+      font-weight: bold;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .action-btn.unlock {
+      border-color: var(--glow-green);
+      color: var(--glow-green);
+    }
+
+    .action-btn.unlock:hover {
+      background: rgba(0, 255, 200, 0.15);
+      box-shadow: 0 0 12px rgba(0, 255, 200, 0.25);
+    }
+
+    .action-btn.view {
+      border-color: var(--glow-blue);
+      color: var(--glow-blue);
+    }
+
+    .action-btn.view:hover {
+      background: rgba(0, 180, 255, 0.15);
+      box-shadow: 0 0 12px rgba(0, 180, 255, 0.25);
+    }
+
+    .action-btn.lock {
+      border-color: var(--text-dim);
+      color: var(--text-dim);
+    }
+
+    .action-btn.lock:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--text-main);
+      color: var(--text-main);
+    }
+
+    .action-btn.delete {
+      border-color: var(--glow-red);
+      color: var(--glow-red);
+    }
+
+    .action-btn.delete:hover {
+      background: rgba(255, 80, 80, 0.15);
+      box-shadow: 0 0 12px rgba(255, 80, 80, 0.25);
+    }
+
+    /* Add node Section Form styling */
+    .add-node-form {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .form-input-group {
+      flex-grow: 1;
+      display: flex;
+      gap: 15px;
+    }
+
+    .form-input {
+      flex-grow: 1;
+      background: rgba(5, 7, 10, 0.85);
+      border: 1.5px solid var(--border-color);
+      border-radius: 6px;
+      padding: 12px 18px;
+      font-family: inherit;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s ease;
+      letter-spacing: 1px;
+    }
+
+    .form-input:focus {
+      border-color: var(--glow-green);
+      box-shadow: 0 0 15px rgba(0, 255, 200, 0.15);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .header-panel {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .network-badge {
+        align-self: flex-start;
+      }
+      .controls-deck {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search-wrapper {
+        max-width: 100%;
+      }
+      .form-input-group {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="admin-container">
+    
+    <!-- Header panel -->
+    <div class="glass-panel header-panel">
+      <div class="title-area">
+        <h1>Biometric Signature Admin</h1>
+        <p>Interactive Network Node Registry Controller</p>
+      </div>
+      <div class="network-badge">
+        <div id="net-dot" class="pulse-dot"></div>
+        <span id="net-text">CONNECTING</span>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Dashboard Card Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">Total Registry Nodes</span>
+        <span id="stat-total" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Active / Unlocked keys</span>
+        <span id="stat-unlocked" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Secured Signers</span>
+        <span id="stat-locked" class="stat-value">0</span>
+      </div>
+    </div>
+
+    <!-- Main Controller panel -->
+    <div class="glass-panel">
+      <div class="controls-deck">
+        <div class="search-wrapper">
+          <input type="text" id="search-bar" class="search-input" placeholder="SEARCH SIGNER HASH / NAME..." oninput="handleSearch()" />
+        </div>
+        <div class="filters-group">
+          <button id="filter-all" class="filter-btn active" onclick="setFilter('all')">ALL</button>
+          <button id="filter-unlocked" class="filter-btn" onclick="setFilter('unlocked')">PENDING</button>
+          <button id="filter-locked" class="filter-btn" onclick="setFilter('locked')">SECURED</button>
+        </div>
+        <div>
+          <button class="btn btn-glow-red" onclick="triggerResetAll()">[ ↺ RESET ALL LOCKS ]</button>
+        </div>
+      </div>
+
+      <!-- Guest Table list -->
+      <div class="table-container">
+        <table class="tech-table">
+          <thead>
+            <tr>
+              <th>Signer Identity / Name</th>
+              <th>Status Field</th>
+              <th>Action Panel</th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <!-- Dynamic data will be generated here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add New Guest panel -->
+    <div class="glass-panel">
+      <h2 style="font-size: 16px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; color: var(--glow-green);">[ + Deploy New Registry Node ]</h2>
+      <form id="add-guest-form" onsubmit="triggerAddGuest(event)" class="add-node-form">
+        <div class="form-input-group">
+          <input type="text" id="new-guest-name" class="form-input" placeholder="ENTER NEW SIGNER NAME..." required autocomplete="off" />
+        </div>
+        <button type="submit" class="btn btn-glow-blue">[ DEPLOY NODE ]</button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Futuristic Biometric Signature Playback Modal -->
+  <div id="sig-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(3, 6, 10, 0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: opacity 0.3s ease; opacity: 0;">
+    <div class="glass-panel" style="width: 90%; max-width: 600px; padding: 25px; border-color: var(--border-color); display: flex; flex-direction: column; gap: 20px; align-items: center; box-shadow: 0 0 50px rgba(0, 180, 255, 0.15); transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 180, 255, 0.2); padding-bottom: 12px;">
+        <h3 id="modal-title" style="font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; color: var(--glow-blue); text-shadow: 0 0 10px rgba(0, 180, 255, 0.3);">BIOMETRIC RECONSTRUCTION: NULL</h3>
+        <button onclick="closeSignatureModal()" class="action-btn delete" style="padding: 4px 10px;">[ CLOSE ]</button>
+      </div>
+      
+      <!-- Reconstruction Canvas Area -->
+      <div style="position: relative; width: 100%; aspect-ratio: 16/9; background: rgba(5, 8, 12, 0.85); border: 1.5px solid var(--border-color); border-radius: 8px; overflow: hidden;">
+        <!-- Technical HUD Overlay Grid lines inside Canvas container -->
+        <div style="position: absolute; width: 100%; height: 100%; background-image: linear-gradient(rgba(0, 180, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 180, 255, 0.05) 1px, transparent 1px); background-size: 20px 20px; pointer-events: none; z-index: 1;"></div>
+        
+        <canvas id="modal-canvas" style="display: block; width: 100%; height: 100%; position: relative; z-index: 2;"></canvas>
+        
+        <!-- Live Playback Telemetry Status overlay -->
+        <div id="modal-status" style="position: absolute; bottom: 10px; left: 14px; font-size: 9px; color: var(--glow-green); text-shadow: 0 0 5px rgba(0, 255, 200, 0.3); z-index: 3; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">TELEM_STATUS: STANDBY</div>
+      </div>
+      
+      <div style="width: 100%; display: flex; justify-content: flex-end; gap: 15px;">
+        <button id="modal-replay-btn" class="btn btn-glow-blue" style="padding: 8px 16px; font-size: 11px;" onclick="replaySignature()">[ ↺ REPLAY ]</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let rawGuestList = [];
+    let activeFilter = 'all';
+    let searchQuery = '';
+    
+    // Playback state variables
+    let playbackInterval = null;
+    let signatureData = null;
+
+    // Auto-detect WebSocket protocol and host dynamically
+    let wsUrl;
+    if (window.location.protocol === "file:") {
+      wsUrl = "ws://192.168.18.6:9980/admin";
+    } else {
+      const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+      wsUrl = `${wsProtocol}${window.location.host}/admin`;
+    }
+
+    function connectWS() {
+      const dot = document.getElementById('net-dot');
+      const text = document.getElementById('net-text');
+
+      dot.className = "pulse-dot connecting";
+      text.innerText = "CONNECTING";
+
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        dot.className = "pulse-dot online";
+        text.innerText = "ADMIN HUB: ONLINE";
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (Array.isArray(data)) {
+            rawGuestList = data;
+            renderConsole();
+          }
+        } catch (e) {
+          console.error("Failed to parse websocket message:", e);
+        }
+      };
+
+      ws.onclose = () => {
+        dot.className = "pulse-dot";
+        text.innerText = "LINK TERMINATED";
+        setTimeout(connectWS, 2000);
+      };
+
+      ws.onerror = () => {
+        dot.className = "pulse-dot";
+        text.innerText = "LINK FAULT";
+      };
+    }
+
+    function renderConsole() {
+      const totalEl = document.getElementById('stat-total');
+      const unlockedEl = document.getElementById('stat-unlocked');
+      const lockedEl = document.getElementById('stat-locked');
+      const tbody = document.getElementById('table-body');
+
+      // 1. Calculate Stats
+      const total = rawGuestList.length;
+      const lockedCount = rawGuestList.filter(g => g.locked).length;
+      const unlockedCount = total - lockedCount;
+
+      totalEl.innerText = total;
+      unlockedEl.innerText = unlockedCount;
+      lockedEl.innerText = lockedCount;
+
+      // 2. Render Table
+      tbody.innerHTML = "";
+
+      // Apply filters and searches
+      let filtered = rawGuestList.filter(g => {
+        const matchesSearch = g.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesFilter = 
+          activeFilter === 'all' || 
+          (activeFilter === 'locked' && g.locked) || 
+          (activeFilter === 'unlocked' && !g.locked);
+        return matchesSearch && matchesFilter;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="3" style="text-align: center; color: var(--text-dim); padding: 30px;">
+              NO RECORDS MATCHING TARGET SEARCH DECK
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      filtered.forEach(guest => {
+        const tr = document.createElement("tr");
+
+        // Column 1: Guest name (Upper case for cyber vibe)
+        const nameTd = document.createElement("td");
+        nameTd.innerHTML = `<strong>${guest.name.toUpperCase()}</strong>`;
+        tr.appendChild(nameTd);
+
+        // Column 2: Status
+        const statusTd = document.createElement("td");
+        if (guest.locked) {
+          statusTd.innerHTML = `<span class="status-badge locked">[ SECURED / LOCKED ]</span>`;
+        } else {
+          statusTd.innerHTML = `<span class="status-badge unlocked">[ PENDING / UNLOCKED ]</span>`;
+        }
+        tr.appendChild(statusTd);
+
+        // Column 3: Actions
+        const actionsTd = document.createElement("td");
+        actionsTd.className = "actions-cell";
+
+        // View Signature button (Only if locked and has signature data stored!)
+        if (guest.locked && guest.has_signature) {
+          const viewBtn = document.createElement("button");
+          viewBtn.className = "action-btn view";
+          viewBtn.innerHTML = "[ 👁️ VIEW ]";
+          
+          // Generate file safe name
+          const safeName = guest.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "_");
+          viewBtn.onclick = () => openSignatureModal(guest.name, safeName);
+          actionsTd.appendChild(viewBtn);
+        }
+
+        // Lock / Unlock toggle btn
+        const toggleBtn = document.createElement("button");
+        if (guest.locked) {
+          toggleBtn.className = "action-btn unlock";
+          toggleBtn.innerHTML = "[ UNLOCK KEY ]";
+          toggleBtn.onclick = () => sendCommand("UNLOCK", guest.name);
+        } else {
+          toggleBtn.className = "action-btn lock";
+          toggleBtn.innerHTML = "[ LOCK SECURE ]";
+          toggleBtn.onclick = () => sendCommand("LOCK", guest.name);
+        }
+        actionsTd.appendChild(toggleBtn);
+
+        // Delete btn
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "action-btn delete";
+        deleteBtn.innerHTML = "[ DELETE NODE ]";
+        deleteBtn.onclick = () => {
+          if (confirm(`CAUTION: Permanently delete node '${guest.name.toUpperCase()}'?`)) {
+            sendCommand("DELETE_GUEST", guest.name);
+          }
+        };
+        actionsTd.appendChild(deleteBtn);
+
+        tr.appendChild(actionsTd);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function sendCommand(type, name) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type, name }));
+      }
+    }
+
+    function handleSearch() {
+      searchQuery = document.getElementById('search-bar').value;
+      renderConsole();
+    }
+
+    function setFilter(filter) {
+      activeFilter = filter;
+      
+      // Update filter active status classes
+      document.getElementById('filter-all').className = "filter-btn" + (filter === 'all' ? ' active' : '');
+      document.getElementById('filter-unlocked').className = "filter-btn" + (filter === 'unlocked' ? ' active' : '');
+      document.getElementById('filter-locked').className = "filter-btn" + (filter === 'locked' ? ' active' : '');
+
+      renderConsole();
+    }
+
+    function triggerResetAll() {
+      if (confirm("CAUTION: This will release ALL secured signers (locks), enabling everyone in the registry to sign again. Proceed?")) {
+        sendCommand("RESET_ALL", "");
+      }
+    }
+
+    function triggerAddGuest(event) {
+      event.preventDefault();
+      const nameInput = document.getElementById('new-guest-name');
+      const name = nameInput.value.trim();
+      if (name) {
+        sendCommand("ADD_GUEST", name);
+        nameInput.value = "";
+      }
+    }
+    
+    // ==========================================
+    // Biometric Playback Modal Reconstruction Script
+    // ==========================================
+    async function openSignatureModal(guestName, safeName) {
+      const modal = document.getElementById('sig-modal');
+      const modalPanel = modal.querySelector('.glass-panel');
+      const title = document.getElementById('modal-title');
+      const status = document.getElementById('modal-status');
+      
+      title.innerText = `BIOMETRIC RECONSTRUCTION: ${guestName.toUpperCase()}`;
+      status.innerText = "TELEM_STATUS: RETRIEVING DATASETS...";
+      
+      modal.style.display = "flex";
+      setTimeout(() => {
+        modal.style.opacity = "1";
+        modalPanel.style.transform = "scale(1)";
+      }, 20);
+      
+      // Initialize Canvas sizes & high-res scaling
+      const canvas = document.getElementById('modal-canvas');
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      
+      try {
+        const response = await fetch(`/signature/${safeName}`);
+        if (response.ok) {
+          signatureData = await response.json();
+          animateSignature();
+        } else {
+          status.innerText = "TELEM_STATUS: RECORDING NOT FOUND";
+        }
+      } catch (e) {
+        status.innerText = "TELEM_STATUS: CONSOLE FAULT";
+        console.error("Failed to load signature dataset:", e);
+      }
+    }
+
+    function closeSignatureModal() {
+      const modal = document.getElementById('sig-modal');
+      const modalPanel = modal.querySelector('.glass-panel');
+      
+      modal.style.opacity = "0";
+      modalPanel.style.transform = "scale(0.95)";
+      setTimeout(() => modal.style.display = "none", 300);
+      
+      if (playbackInterval) {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+      }
+    }
+
+    function animateSignature() {
+      if (!signatureData || !signatureData.strokes || signatureData.strokes.length === 0) {
+        return;
+      }
+      
+      const canvas = document.getElementById('modal-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      if (playbackInterval) {
+        clearInterval(playbackInterval);
+      }
+      
+      const status = document.getElementById('modal-status');
+      
+      // Flatten all points to an array of points with stroke indices
+      let allPoints = [];
+      signatureData.strokes.forEach((stroke, strokeIdx) => {
+        stroke.forEach((pt, ptIdx) => {
+          allPoints.push({
+            x: pt.x,
+            y: pt.y,
+            strokeIdx: strokeIdx,
+            ptIdx: ptIdx
+          });
+        });
+      });
+      
+      let currentIdx = 0;
+      let renderedStrokes = []; // Array of completed stroke segment arrays for drawing
+      
+      status.innerText = `TELEM_STATUS: DECRYPTING & PLAYING (${allPoints.length} NODES)...`;
+      
+      playbackInterval = setInterval(() => {
+        if (currentIdx >= allPoints.length) {
+          clearInterval(playbackInterval);
+          playbackInterval = null;
+          status.innerText = "TELEM_STATUS: COMPLETED // SHA-512 SECURED";
+          return;
+        }
+        
+        const pt = allPoints[currentIdx];
+        
+        // Add to rendered strokes
+        if (renderedStrokes.length <= pt.strokeIdx) {
+          renderedStrokes.push([]);
+        }
+        renderedStrokes[pt.strokeIdx].push({
+          x: pt.x * canvas.width,
+          y: pt.y * canvas.height
+        });
+        
+        // Redraw canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        
+        renderedStrokes.forEach(strokePoints => {
+          if (strokePoints.length < 1) return;
+          
+          if (strokePoints.length === 1) {
+            ctx.beginPath();
+            ctx.arc(strokePoints[0].x, strokePoints[0].y, 2, 0, Math.PI * 2);
+            ctx.fillStyle = '#00ffc8';
+            ctx.fill();
+            return;
+          }
+          
+          // Glow layer 1
+          ctx.strokeStyle = 'rgba(0, 180, 255, 0.12)';
+          ctx.lineWidth = 9;
+          drawStroke(ctx, strokePoints);
+          
+          // Glow layer 2
+          ctx.strokeStyle = 'rgba(0, 255, 200, 0.4)';
+          ctx.lineWidth = 5;
+          drawStroke(ctx, strokePoints);
+          
+          // Core layer
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+          ctx.lineWidth = 2.5;
+          drawStroke(ctx, strokePoints);
+        });
+        
+        // Draw crosshair cursor at current point
+        drawTelemetryCursor(ctx, pt.x * canvas.width, pt.y * canvas.height);
+        
+        currentIdx++;
+      }, 15); // Adjust playback speed (15ms per coordinate point)
+    }
+    
+    function drawStroke(ctx, points) {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.stroke();
+    }
+    
+    function drawTelemetryCursor(ctx, cx, cy) {
+      ctx.save();
+      // Neon cyan telemetry targeting ring
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Target crosshairs
+      ctx.beginPath();
+      ctx.moveTo(cx - 12, cy); ctx.lineTo(cx + 12, cy);
+      ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy + 12);
+      ctx.stroke();
+      ctx.restore();
+    }
+    
+    function replaySignature() {
+      animateSignature();
+    }
+
+    // Connect WebSocket on boot
+    connectWS();
+  </script>
+</body>
+
+</html>

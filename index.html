@@ -1,28 +1,354 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Signature Pad</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
   <style>
-    html, body {
+    html,
+    body {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #f3f3f3;
+      background: #0d1117;
+      overscroll-behavior: none; /* Disable pull-to-refresh and glow effects completely */
     }
+
     body {
       min-height: 100vh;
+      overscroll-behavior: none;
     }
+
     canvas {
       display: block;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      overscroll-behavior: none;
+    }
+
+    /* Fullscreen High-Contrast Identity Grid Overlay */
+    #init-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      padding: 40px 20px;
+      background: #080c10;
+      z-index: 9999;
+      overflow-y: auto;
+      /* Enable vertical scrolling */
+      touch-action: pan-y;
+      /* Allow vertical scrolling on touch screens */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      transition: opacity 0.5s ease-out;
+    }
+
+    /* Premium custom scrollbar styling for the overlay */
+    #init-overlay::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #init-overlay::-webkit-scrollbar-track {
+      background: #080c10;
+    }
+
+    #init-overlay::-webkit-scrollbar-thumb {
+      background: rgba(0, 180, 255, 0.3);
+      border-radius: 4px;
+    }
+
+    #init-overlay::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 255, 200, 0.5);
+    }
+
+    /* Grid stretching to cover 100% of the viewport */
+    .guest-grid {
+      display: grid;
+      gap: 16px;
+      width: 100%;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-auto-rows: minmax(75px, auto);
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+
+        /* Massive, ultra-accessible high-contrast buttons */
+    .guest-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(13, 20, 28, 0.95);
+      border: 3.5px solid rgba(0, 180, 255, 0.55);
+      font-family: 'Space Mono', monospace;
+      font-size: clamp(14px, 2.5vw, 32px);
+      /* Responsive font size */
+      font-weight: 700;
+      color: #00b4ff;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      border-radius: 8px;
+      outline: none;
+      text-transform: uppercase;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(0, 180, 255, 0.05);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: break-word;
+      line-height: 1.2;
+    }
+
+    .guest-btn:not(:disabled):hover {
+      background: rgba(0, 255, 200, 0.14);
+      border-color: #00ffc8;
+      color: #00ffc8;
+      text-shadow: 0 0 12px rgba(0, 255, 200, 0.5);
+      box-shadow: 0 0 30px rgba(0, 255, 200, 0.25);
+      transform: scale(1.02);
+    }
+
+    .guest-btn:not(:disabled):active {
+      transform: scale(0.98);
+    }
+
+    .guest-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      border-color: rgba(100, 100, 100, 0.4) !important;
+      color: #555 !important;
+      background: rgba(5, 5, 5, 0.95) !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+      transform: none !important;
     }
   </style>
 </head>
+
 <body>
+  <!-- Fullscreen Guest Identity Selection Grid Overlay -->
+  <div id="init-overlay">
+    <div id="ws-container"
+      style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; width: 100%; margin: auto 0;">
+      <div id="ws-status"
+        style="font-family: 'Space Mono', monospace; font-size: 24px; color: #00b4ff; margin-bottom: 24px; font-weight: bold; text-shadow: 0 0 10px rgba(0, 180, 255, 0.5);">
+        INITIALIZING CONNECTION...</div>
+      <div style="display: flex; gap: 20px;">
+        <button id="ws-retry-btn" class="guest-btn" style="display: none; font-size: 20px; padding: 12px 32px;"
+          onclick="connectWebSocket()">RETRY</button>
+        <button id="ws-bypass-btn" class="guest-btn"
+          style="font-size: 20px; padding: 12px 32px; border-color: rgba(255, 110, 0, 0.55); color: #ff6e00;"
+          onclick="bypassConnection()"
+          onmouseover="this.style.borderColor='#ffaa00'; this.style.color='#ffaa00'; this.style.textShadow='0 0 12px rgba(255, 170, 0, 0.5)'"
+          onmouseout="this.style.borderColor='rgba(255, 110, 0, 0.55)'; this.style.color='#ff6e00'; this.style.textShadow='none'">TRY
+          APP ANYWAY</button>
+      </div>
+    </div>
+    <div id="guest-section"
+      style="display: none; flex-direction: column; width: 100%; max-width: 1200px; margin: auto 0; gap: 20px;">
+      <div style="text-align: center; padding: 10px 0; flex-shrink: 0;">
+        <h1
+          style="font-family: 'Space Mono', monospace; font-size: clamp(20px, 3vw, 36px); font-weight: 700; color: #00ffc8; margin: 0; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 15px rgba(0, 255, 200, 0.4);">
+          Silahkan Pilih Nama Anda</h1>
+      </div>
+      <div class="guest-grid" id="guest-buttons-container">
+        <!-- Javascript will populate buttons from guestlist.txt -->
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/p5.min.js"></script>
   <script src="sketch.js"></script>
+  <script>
+    let ws = null;
+    // Auto-detect WebSocket protocol and host dynamically to support both local LAN IPs and ngrok / domain tunneling out of the box!
+    let wsUrl;
+    if (window.location.protocol === "file:") {
+      wsUrl = "ws://192.168.18.6:9980";
+    } else {
+      const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+      wsUrl = `${wsProtocol}${window.location.host}`;
+    }
+
+    function connectWebSocket() {
+      const statusEl = document.getElementById('ws-status');
+      const retryBtn = document.getElementById('ws-retry-btn');
+      const wsContainer = document.getElementById('ws-container');
+      const guestSection = document.getElementById('guest-section');
+      const overlay = document.getElementById('init-overlay');
+
+      statusEl.innerText = "CONNECTING TO TELEMETRY SERVER...";
+      statusEl.style.color = "#00b4ff";
+      retryBtn.style.display = "none";
+      document.getElementById('ws-bypass-btn').style.display = "inline-block";
+      wsContainer.style.display = "flex";
+      guestSection.style.display = "none";
+
+      overlay.style.display = "flex";
+      overlay.style.opacity = '1';
+      overlay.style.pointerEvents = 'auto';
+
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+
+      try {
+        ws = new WebSocket(wsUrl);
+        window.globalWS = ws; // Export for sketch.js
+
+        ws.onopen = () => {
+          statusEl.innerText = "CONNECTED. WAITING FOR GUEST LIST...";
+          statusEl.style.color = "#00ffc8";
+        };
+
+        ws.onmessage = (event) => {
+          console.log(event.data);
+
+          try {
+            const data = JSON.parse(event.data);
+            console.log(data);
+            if (Array.isArray(data) && data.length > 0) {
+              renderButtons(data);
+              if (wsContainer.style.display !== "none") {
+                setTimeout(() => {
+                  wsContainer.style.display = "none";
+                  guestSection.style.display = "flex";
+                }, 400);
+              }
+            }
+          } catch (e) {
+            // Not a JSON guest list message, ignore
+          }
+        };
+
+        ws.onclose = handleDisconnect;
+        ws.onerror = handleDisconnect;
+      } catch (e) {
+        handleDisconnect();
+      }
+    }
+
+    function handleDisconnect() {
+      if (window.offlineMode) return;
+
+      const statusEl = document.getElementById('ws-status');
+      const retryBtn = document.getElementById('ws-retry-btn');
+      const wsContainer = document.getElementById('ws-container');
+      const guestSection = document.getElementById('guest-section');
+      const overlay = document.getElementById('init-overlay');
+
+      statusEl.innerText = "CONNECTION DISRUPTED";
+      statusEl.style.color = "#ff5050";
+      retryBtn.style.display = "inline-block";
+      document.getElementById('ws-bypass-btn').style.display = "inline-block";
+      wsContainer.style.display = "flex";
+      guestSection.style.display = "none";
+
+      overlay.style.display = "flex";
+      overlay.style.opacity = '1';
+      overlay.style.pointerEvents = 'auto';
+
+      if (window.exitFullscreenSystem) {
+        window.exitFullscreenSystem();
+      }
+    }
+
+    function bypassConnection() {
+      window.offlineMode = true;
+      if (ws) {
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
+      const wsContainer = document.getElementById('ws-container');
+      const guestSection = document.getElementById('guest-section');
+
+      wsContainer.style.display = "none";
+      guestSection.style.display = "flex";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      connectWebSocket();
+      const container = document.getElementById("guest-buttons-container");
+
+      // Fallback guest list in case guestlist.txt fails or is empty ( supreme developer safety! )
+      const defaultGuests = [
+        "RUDI HERMAWAN",
+        "SITI AMINAH",
+        "BAMBANG UTOMO",
+        "DEWI LESTARI",
+        "HENDRA WIJAYA",
+        "GUEST ACCESS"
+      ];
+
+      // Render fallback buttons for bypass/offline mode
+      renderButtons(defaultGuests);
+
+      function renderButtons(guestList) {
+        container.innerHTML = "";
+
+        guestList.forEach(guest => {
+          let name = "";
+          let locked = false;
+
+          if (typeof guest === "string") {
+            name = guest;
+          } else if (guest && typeof guest === "object") {
+            name = guest.name || "";
+            locked = !!guest.locked;
+          }
+
+          if (!name) return;
+
+          const btn = document.createElement("button");
+          btn.className = "guest-btn";
+          btn.innerHTML = name.toUpperCase();
+
+          if (locked) {
+            btn.disabled = true;
+          } else {
+            btn.onclick = () => selectGuest(name);
+          }
+          container.appendChild(btn);
+        });
+      }
+
+      // Make renderButtons available globally so connectWebSocket can call it
+      window.renderButtons = renderButtons;
+    });
+
+    function selectGuest(guestName) {
+      // Expose fullscreen request and pass the guest identity to p5.js sketch
+      if (window.enterFullscreenSystem) {
+        window.enterFullscreenSystem(guestName);
+      }
+
+      // Fade out modal
+      const overlay = document.getElementById('init-overlay');
+      overlay.style.opacity = '0';
+      // Keep pointer-events active during the 500ms fade transition to intercept double-taps/clicks
+      setTimeout(() => {
+        if (overlay.style.opacity === '0') {
+          overlay.style.display = 'none';
+          overlay.style.pointerEvents = 'none';
+        }
+      }, 500);
+    }
+  </script>
 </body>
+
 </html>
