@@ -11,6 +11,7 @@ import os
 import socket
 import sys
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs, unquote
 
 # Import websockets library
 try:
@@ -257,6 +258,25 @@ def get_last_completed_signature():
         log_warning(f"Failed to retrieve last completed signature: {e}")
         return None
 
+def get_signature_by_name(name):
+    if not name:
+        return None
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    signatures_dir = os.path.join(current_dir, "signatures")
+    if not os.path.exists(signatures_dir):
+        return None
+        
+    safe_name = "".join([c if c.isalnum() else "_" for c in name.strip().lower()])
+    file_path = os.path.join(signatures_dir, f"{safe_name}.json")
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            log_warning(f"Failed to retrieve signature for '{name}': {e}")
+            return None
+    return None
+
 # Connection States
 clients = set()
 receivers = set()
@@ -317,18 +337,40 @@ async def register_connection(websocket, *args, **kwargs):
             
         report_connection_metrics()
         
-        # Load and transmit the last completed signature to the receiver upon connection
-        last_sig = get_last_completed_signature()
-        if last_sig:
+        # Check if a specific guest name was requested in the connection URL query string
+        target_name = None
+        try:
+            parsed_url = urlparse(actual_path)
+            query_params = parse_qs(parsed_url.query)
+            target_name_list = query_params.get("name")
+            if target_name_list:
+                target_name = unquote(target_name_list[0]).strip()
+        except Exception as e:
+            log_warning(f"Error parsing path query params: {e}")
+
+        # Load and transmit the appropriate signature to the receiver upon connection
+        sig_to_send = None
+        if target_name:
+            sig_to_send = get_signature_by_name(target_name)
+            if sig_to_send:
+                log_info(f"Retrieved saved signature for requested guest '{target_name}'")
+            else:
+                log_info(f"No saved signature found for requested guest '{target_name}'")
+        else:
+            sig_to_send = get_last_completed_signature()
+            if sig_to_send:
+                log_info(f"Retrieved last completed signature for generic receiver")
+
+        if sig_to_send:
             try:
                 await websocket.send(json.dumps({
                     "type": "load_signature",
-                    "name": last_sig["name"],
-                    "strokes": last_sig["strokes"]
+                    "name": sig_to_send["name"],
+                    "strokes": sig_to_send["strokes"]
                 }))
-                log_info(f"Dispatched last completed signature '{last_sig['name']}' to receiver {Style.BOLD}{conn_id}{Style.RESET}")
+                log_info(f"Dispatched signature '{sig_to_send['name']}' to receiver {Style.BOLD}{conn_id}{Style.RESET}")
             except Exception as e:
-                log_alert(f"Failed to transmit last completed signature to receiver {conn_id}: {e}")
+                log_alert(f"Failed to transmit signature to receiver {conn_id}: {e}")
         
         try:
             # Receivers generally just listen, but we wait for close or message

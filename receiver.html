@@ -36,10 +36,10 @@
     // Auto-detect WebSocket protocol and host dynamically to support both local LAN IPs and ngrok / domain tunneling out of the box!
     let wsUrl;
     if (window.location.protocol === "file:") {
-      wsUrl = "ws://192.168.18.6:9980/receiver";
+      wsUrl = "ws://192.168.18.6:9980/receiver" + window.location.search;
     } else {
       const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-      wsUrl = `${wsProtocol}${window.location.host}/receiver`;
+      wsUrl = `${wsProtocol}${window.location.host}/receiver` + window.location.search;
     }
     let ws = null;
     let connected = false;

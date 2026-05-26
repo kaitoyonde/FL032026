@@ -3,3 +3,4 @@ Backup/
 __pycache__/
 signatures/
 LiveSignature.[0-9]*.toe
+*.zip
